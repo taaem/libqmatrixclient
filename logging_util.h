@@ -26,6 +26,40 @@
 
 namespace QMatrixClient {
 
+// Check-and-log/Log-if-not stuff
+
+/**
+ * Checks the condition and logs to os if the condition holds.
+ *
+ * Checks the condition exactly once.
+ * Works with any stream that has operator<<()
+ * Non-reentrant if condition is non-reentrant.
+ * @return the result of the condition check.
+ */
+template <typename _ScopeStrT, typename _LogStrT, typename _OutputStreamT>
+inline bool check_and_log(bool condition, _ScopeStrT scope,
+                          _LogStrT log_str, _OutputStreamT os )
+{
+    if (condition)
+    {
+        os << scope << log_str;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Checks the condition and logs to log_object if it holds.
+ * if ( CHECK_AND_LOG(qDebug(), 0 < 1) )
+ * {
+ *   // condition holds
+ * }
+ * See check_and_log() for details.
+ */
+#define CHECK_AND_LOG(log_object, cond) \
+    QMatrixClient::check_and_log( \
+        (cond), __func__, " assertion failed: " #cond, (log_object) )
+
 // QDebug manipulators
 
 using QDebugManip = QDebug (*)(QDebug);
