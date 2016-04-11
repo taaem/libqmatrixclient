@@ -82,42 +82,48 @@ QString Event::originalJson() const
     return d->originalJson;
 }
 
+// The below overloaded function constructs the needed Event descendant object
+// using tail recursion to build a sequence of check-and-create-or-move-on actions.
+// The first function sets the default: if nothing else matches,
+// an UnknownEvent is constructed. The second one defines an induction step:
+// it eats up its second (matching pattern for an event type in JSON) and third
+// argument (actual factory function to call); checks whether the analyzed event
+// in JSON matches the second argument; if it does, the third argument is
+// invoked; if there's no match then the two used arguments are dropped and the
+// function is reinvoked with the argument list without 2nd and 3rd argument.
+// The number of arguments should be odd (1 + 2n), otherwise building will fail.
+Event *makeEvent(const QJsonObject &obj)
+{
+    return UnknownEvent::fromJson(obj);
+}
+
+template <typename StrT, typename EvProducerT, typename... EvProducers>
+Event *makeEvent(const QJsonObject &obj,
+        StrT eventTypeStr, EvProducerT evProducer,
+        EvProducers... otherProducers)
+{
+    if( obj.value("type").toString() == eventTypeStr )
+        return evProducer(obj);
+    return makeEvent(obj, otherProducers...);
+}
+
+// Using makeEvent() overloads above, it becomes very easy to create a map of
+// event types to event object factories.
 Event* Event::fromJson(const QJsonObject& obj)
 {
     //qDebug() << obj.value("type").toString();
-    if( obj.value("type").toString() == "m.room.message" )
-    {
-        return RoomMessageEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.room.name" )
-    {
-        return RoomNameEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.room.aliases" )
-    {
-        return RoomAliasesEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.room.canonical_alias" )
-    {
-        return RoomCanonicalAliasEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.room.member" )
-    {
-        return RoomMemberEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.room.topic" )
-    {
-        return RoomTopicEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.typing" )
-    {
-        return TypingEvent::fromJson(obj);
-    }
-    if( obj.value("type").toString() == "m.receipt" )
-    {
-        return ReceiptEvent::fromJson(obj);
-    }
-    return UnknownEvent::fromJson(obj);
+    return
+        makeEvent(obj
+            , "m.room.message", RoomMessageEvent::fromJson
+            , "m.room.name", RoomNameEvent::fromJson
+            , "m.room.aliases", RoomAliasesEvent::fromJson
+            , "m.room.canonical_alias", RoomCanonicalAliasEvent::fromJson
+            , "m.room.member", RoomMemberEvent::fromJson
+            , "m.room.topic", RoomTopicEvent::fromJson
+            , "m.typing", TypingEvent::fromJson
+            , "m.receipt", ReceiptEvent::fromJson
+            /* Insert new event types BEFORE this line */
+        );
 }
 
 bool Event::parseJson(const QJsonObject& obj)
