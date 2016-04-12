@@ -24,7 +24,7 @@
 
 namespace QMatrixClient
 {
-    class Event;
+    class RoomMemberEvent;
     class Connection;
     class User: public QObject
     {
@@ -50,7 +50,7 @@ namespace QMatrixClient
 
             QPixmap avatar(int requestedWidth, int requestedHeight);
 
-            void processEvent(Event* event);
+            void processEvent(RoomMemberEvent* e);
 
         public slots:
             void requestAvatar();

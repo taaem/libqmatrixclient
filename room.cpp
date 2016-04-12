@@ -450,7 +450,7 @@ void Room::processStateEvent(Event* event)
     {
         RoomMemberEvent* memberEvent = static_cast<RoomMemberEvent*>(event);
         User* u = d->connection->user(memberEvent->userId());
-        u->processEvent(event);
+        u->processEvent(memberEvent);
         if( memberEvent->membership() == MembershipType::Join )
         {
             d->addMember(u);
