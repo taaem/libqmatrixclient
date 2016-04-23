@@ -37,14 +37,29 @@ using namespace QMatrixClient;
 
 ConnectionPrivate::ConnectionPrivate(Connection* parent)
     : q(parent)
+    , status(Connection::Disconnected)
+    , data(nullptr)
+    , syncJob(nullptr)
 {
-    isConnected = false;
-    data = nullptr;
 }
 
 ConnectionPrivate::~ConnectionPrivate()
 {
-    delete data;
+    if (data)
+        delete data;
+}
+
+SyncJob* ConnectionPrivate::startSyncJob(QString filter, int timeout)
+{
+    if (syncJob) // The previous job hasn't finished yet
+        return syncJob;
+
+    syncJob = new SyncJob(data, data->lastEvent());
+    syncJob->setFilter(filter);
+    syncJob->setTimeout(timeout);
+    connect( syncJob, &SyncJob::result, this, &ConnectionPrivate::syncDone );
+    syncJob->start();
+    return syncJob;
 }
 
 void ConnectionPrivate::resolveServer(QString domain)
@@ -115,6 +130,38 @@ Room* ConnectionPrivate::provideRoom(QString id)
     emit q->newRoom(room);
     return room;
 }
+
+void ConnectionPrivate::syncDone()
+{
+    if( !syncJob->error() )
+    {
+        data->setLastEvent(syncJob->nextBatch());
+        processRooms(syncJob->roomData());
+        syncJob = nullptr;
+        emit q->syncDone();
+    }
+    else {
+        if( syncJob->error() == SyncJob::NetworkError )
+            emit q->connectionError( syncJob->errorString() );
+    }
+    syncJob = nullptr;
+}
+
+//void ConnectionPrivate::gotJoinRoom(KJob* job)
+//{
+//    qDebug() << "gotJoinRoom";
+//    JoinRoomJob* joinJob = static_cast<JoinRoomJob*>(job);
+//    if( !joinJob->error() )
+//    {
+//        if ( Room* r = provideRoom(joinJob->roomId()) )
+//            emit q->joinedRoom(r);
+//    }
+//    else
+//    {
+//        if( joinJob->error() == BaseJob::NetworkError )
+//            emit q->connectionError( joinJob->errorString() );
+//    }
+//}
 
 void ConnectionPrivate::gotRoomMembers(BaseJob* job)
 {

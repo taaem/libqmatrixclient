@@ -36,18 +36,26 @@ namespace QMatrixClient
 
     class Connection: public QObject {
             Q_OBJECT
+            Q_PROPERTY(Status status READ status WRITE setStatus NOTIFY statusChanged)
         public:
+            enum Status : int {
+                Disconnected = 0, Connecting, Connected, Reconnecting, Failed
+            };
+            Q_ENUMS(Status)
+
             Connection(QUrl server, QObject* parent = nullptr);
             Connection();
             virtual ~Connection();
 
             QHash<QString, Room*> roomMap() const;
-            Q_INVOKABLE virtual bool isConnected();
+            Q_INVOKABLE virtual bool isConnected() const;
+            virtual Status status() const;
 
             Q_INVOKABLE virtual void resolveServer( QString domain );
             Q_INVOKABLE virtual void connectToServer( QString user, QString password );
             Q_INVOKABLE virtual void connectWithToken( QString userId, QString token );
             Q_INVOKABLE virtual void reconnect();
+            Q_INVOKABLE virtual void disconnectFromServer();
             Q_INVOKABLE virtual void logout();
 
             Q_INVOKABLE virtual SyncJob* sync(int timeout=-1);
@@ -68,34 +76,45 @@ namespace QMatrixClient
             void resolved();
             void connected();
             void reconnected();
+            void disconnected();
             void loggedOut();
 
             void syncDone();
             void newRoom(Room* room);
             void joinedRoom(Room* room);
 
+            /**
+             * This signal is only used to indicate a change in internal status
+             * (e.g. to reflect it in the UI). To connect any data-processing
+             * functions use connected(), reconnected() and disconnected()
+             * signals of the Connection class instead.
+             */
+            void statusChanged(Connection::Status newStatus);
+
             void loginError(QString error);
             void connectionError(QString error);
             void resolveError(QString error);
             //void jobError(BaseJob* job);
-            
+
         protected:
             /**
              * Access the underlying ConnectionData class
              */
             ConnectionData* connectionData();
-            
+
             /**
              * makes it possible for derived classes to have its own User class
              */
             virtual User* createUser(QString userId);
-            
+
             /**
              * makes it possible for derived classes to have its own Room class
              */
             virtual Room* createRoom(QString roomId);
-
         private:
+            void invokeLogin();
+            void setStatus(Status newStatus);
+
             friend class ConnectionPrivate;
             ConnectionPrivate* d;
     };

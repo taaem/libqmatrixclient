@@ -55,29 +55,62 @@ Connection::~Connection()
     delete d;
 }
 
+void Connection::setStatus(Connection::Status newStatus)
+{
+    if (status() == newStatus)
+        return;
+
+    Connection::Status oldStatus = status();
+    d->status = newStatus;
+    qDebug() << "Switched Connection status from" << oldStatus << "to" << status();
+    emit statusChanged(status());
+}
+
 void Connection::resolveServer(QString domain)
 {
     d->resolveServer( domain );
 }
 
+void Connection::invokeLogin()
+{
+    if (status() == Connection::Disconnected)
+    {
+        setStatus(Connection::Connecting);
+    } else {
+        setStatus(Connection::Reconnecting);
+    }
+    auto loginJob = new PasswordLogin( d->data, d->username, d->password );
+    loginJob->start();
+    connect( loginJob, &PasswordLogin::result, [=] ()
+    {
+        if (loginJob->error())
+        {
+            setStatus(Failed);
+            emit loginError( loginJob->errorString() );
+        }
+        else
+        {
+            Connection::Status oldStatus = status();
+            qDebug() << "Our user ID: " << loginJob->id();
+            connectWithToken(loginJob->id(), loginJob->token());
+            if (oldStatus == Connection::Reconnecting)
+                emit reconnected();
+            else
+                emit connected();
+        }
+    });
+}
+
 void Connection::connectToServer(QString user, QString password)
 {
-    PasswordLogin* loginJob = new PasswordLogin(d->data, user, password);
-    connect( loginJob, &PasswordLogin::success, [=] () {
-        qDebug() << "Our user ID: " << loginJob->id();
-        connectWithToken(loginJob->id(), loginJob->token());
-    });
-    connect( loginJob, &PasswordLogin::failure, [=] () {
-        emit loginError(loginJob->errorString());
-    });
-    loginJob->start();
     d->username = user; // to be able to reconnect
     d->password = password;
+    invokeLogin();
 }
 
 void Connection::connectWithToken(QString userId, QString token)
 {
-    d->isConnected = true;
+    setStatus(Connected);
     d->userId = userId;
     d->data->setToken(token);
     qDebug() << "Connected with token:";
@@ -87,16 +120,13 @@ void Connection::connectWithToken(QString userId, QString token)
 
 void Connection::reconnect()
 {
-    PasswordLogin* loginJob = new PasswordLogin(d->data, d->username, d->password );
-    connect( loginJob, &PasswordLogin::success, [=] () {
-        d->userId = loginJob->id();
-        emit reconnected();
-    });
-    connect( loginJob, &PasswordLogin::failure, [=] () {
-        emit loginError(loginJob->errorString());
-        d->isConnected = false;
-    });
-    loginJob->start();
+    invokeLogin();
+}
+
+void Connection::disconnectFromServer()
+{
+    d->syncJob->abandon();
+    setStatus(Disconnected);
 }
 
 void Connection::logout()
@@ -108,19 +138,8 @@ void Connection::logout()
 
 SyncJob* Connection::sync(int timeout)
 {
-    QString filter = "{\"room\": { \"timeline\": { \"limit\": 100 } } }";
-    SyncJob* syncJob = new SyncJob(d->data, d->data->lastEvent());
-    syncJob->setFilter(filter);
-    syncJob->setTimeout(timeout);
-    connect( syncJob, &SyncJob::success, [=] () {
-        d->data->setLastEvent(syncJob->nextBatch());
-        d->processRooms(syncJob->roomData());
-        emit syncDone();
-    });
-    connect( syncJob, &SyncJob::failure,
-             [=] () { emit connectionError(syncJob->errorString());});
-    syncJob->start();
-    return syncJob;
+    const QString filter = "{\"room\": { \"timeline\": { \"limit\": 100 } } }";
+    return d->startSyncJob(filter, timeout);
 }
 
 void Connection::postMessage(Room* room, QString type, QString message)
@@ -204,9 +223,14 @@ QHash< QString, Room* > Connection::roomMap() const
     return d->roomMap;
 }
 
-bool Connection::isConnected()
+bool Connection::isConnected() const
 {
-    return d->isConnected;
+    return d->status == Connected;
+}
+
+Connection::Status Connection::status() const
+{
+    return d->status;
 }
 
 ConnectionData* Connection::connectionData()

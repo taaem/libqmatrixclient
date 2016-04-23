@@ -44,6 +44,8 @@ namespace QMatrixClient
 
             void resolveServer( QString domain );
 
+            SyncJob* startSyncJob(QString filter, int timeout);
+
             void processState( State* state );
             void processRooms( const QList<SyncRoomData>& data );
             /** Finds a room with this id or creates a new one and adds it to roomMap. */
@@ -53,12 +55,14 @@ namespace QMatrixClient
             ConnectionData* data;
             QHash<QString, Room*> roomMap;
             QHash<QString, User*> userMap;
-            bool isConnected;
+            Connection::Status status;
+            SyncJob* syncJob;
             QString username;
             QString password;
             QString userId;
 
         public slots:
+            void syncDone();
             void gotRoomMembers(BaseJob* job);
     };
 }
