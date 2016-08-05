@@ -22,7 +22,7 @@
 #ifdef USING_SYSTEM_KCOREADDONS
 #include <KCoreAddons/KJob>
 #else
-#include "kjob.h"
+#include "../kcoreaddons/src/lib/jobs/kjob.h"
 #endif // KCOREADDONS_FOUND
 
 #include <QtCore/QJsonDocument>

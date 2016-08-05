@@ -86,6 +86,8 @@ QPixmap User::avatar(int width, int height)
         || width > d->requestedWidth
         || height > d->requestedHeight )
     {
+        if(!d->avatarUrl.isValid())
+            emit avatarUrlInvalid();
         if( !d->avatarOngoingRequest && d->avatarUrl.isValid() )
         {
             qDebug() << "Getting avatar for" << id();

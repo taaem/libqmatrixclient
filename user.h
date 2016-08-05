@@ -58,6 +58,7 @@ namespace QMatrixClient
         signals:
             void nameChanged(User*, QString);
             void avatarChanged(User* user);
+            void avatarUrlInvalid();
 
         private:
             class Private;
